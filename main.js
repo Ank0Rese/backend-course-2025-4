@@ -1,6 +1,8 @@
 const http = require('http');
 const fs = require('fs');
+const url = require('url');
 const { program } = require('commander');
+const { XMLBuilder } = require('fast-xml-parser');
 
 program
     .option('-i, --input <path>', 'шлях до файлу, який даємо для читання')
@@ -27,9 +29,51 @@ const inputFile = options.input;
 const host = options.host;
 const port = options.port;
 
+const builder = new XMLBuilder({
+    format: true,
+    arrayNodeName: "banks",
+});
+
 const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Сервер працює. Готовий до виконання Частини 2.');
+    const queryObject = url.parse(req.url, true).query;
+
+    fs.readFile(inputFile, 'utf8', (err, data) => {
+        if (err) {
+            res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Помилка на сервері: неможливо прочитати файл.');
+            return;
+        }
+
+        try {
+            let banks = JSON.parse(data);
+
+            if (queryObject.normal === 'true') {
+                banks = banks.filter(bank => bank.COD_STATE === 1);
+            }
+
+            const resultBanks = banks.map(bank => {
+                const bankData = {};
+                
+                if (queryObject.mfo === 'true') {
+                    bankData.mfo_code = bank.MFO;
+                }
+                
+                bankData.name = bank.NAME;
+                bankData.state_code = bank.COD_STATE;
+                
+                return { bank: bankData };
+            });
+
+            const xmlData = builder.build(resultBanks);
+
+            res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
+            res.end(xmlData);
+
+        } catch (parseError) {
+            res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+            res.end('Помилка на сервері: неможливо обробити JSON з файлу.');
+        }
+    });
 });
 
 fs.access(inputFile, (err) => {
