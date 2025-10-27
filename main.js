@@ -31,7 +31,6 @@ const port = options.port;
 
 const builder = new XMLBuilder({
     format: true,
-    arrayNodeName: "banks",
 });
 
 const server = http.createServer((req, res) => {
@@ -51,20 +50,26 @@ const server = http.createServer((req, res) => {
                 banks = banks.filter(bank => bank.COD_STATE === 1);
             }
 
-            const resultBanks = banks.map(bank => {
+            const processedBanks = banks.map(bank => {
                 const bankData = {};
-                
+
                 if (queryObject.mfo === 'true') {
                     bankData.mfo_code = bank.MFO;
                 }
                 
-                bankData.name = bank.NAME;
+                bankData.name = bank.SHORTNAME;
                 bankData.state_code = bank.COD_STATE;
                 
-                return { bank: bankData };
+                return bankData;
             });
 
-            const xmlData = builder.build(resultBanks);
+            const finalObjectForXml = {
+                banks: {
+                    bank: processedBanks
+                }
+            };
+            
+            const xmlData = builder.build(finalObjectForXml);
 
             res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8' });
             res.end(xmlData);
